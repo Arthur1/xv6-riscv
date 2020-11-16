@@ -345,6 +345,10 @@ sys_open(void)
     itrunc(ip);
   }
 
+  if((omode & O_APPEND) && ip->type == T_FILE){
+    f->off = ip->size;
+  }
+
   iunlock(ip);
   end_op();
 
