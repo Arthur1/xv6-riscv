@@ -180,3 +180,43 @@ filewrite(struct file *f, uint64 addr, int n)
   return ret;
 }
 
+int
+fileexpand(struct file *f, int n)
+{
+  int r, ret = 0;
+  if(f->type != FD_INODE)
+    return -1;
+
+  int max = ((MAXOPBLOCKS-1-1-2) / 2) * BSIZE;
+
+  char *gap = (char *) kalloc();
+  char *ptr = gap;
+  for(int j = 0; j < max; j++)
+    *(ptr++) = '\0';
+
+  int i = 0;
+  while(i < n){
+    int n1 = n - i;
+    if(n1 > max)
+      n1 = max;
+
+    begin_op();
+    ilock(f->ip);
+    if ((r = writei(f->ip, 0, (uint64) gap, f->off, n1)) > 0)
+      f->off += r;
+    iunlock(f->ip);
+    end_op();
+
+    if(r < 0)
+      break;
+    if(r != n1)
+      panic("short filewrite");
+    i += r;
+  }
+  kfree(gap);
+  ret = (i == n ? n : -1);
+
+  return ret;
+}
+
+
