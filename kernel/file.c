@@ -189,10 +189,8 @@ fileexpand(struct file *f, int n)
 
   int max = ((MAXOPBLOCKS-1-1-2) / 2) * BSIZE;
 
-  char *gap = (char *) kalloc();
-  char *ptr = gap;
-  for(int j = 0; j < max; j++)
-    *(ptr++) = '\0';
+  char gap[max];
+  memset(gap, 0, max);
 
   int i = 0;
   while(i < n){
@@ -202,7 +200,7 @@ fileexpand(struct file *f, int n)
 
     begin_op();
     ilock(f->ip);
-    if ((r = writei(f->ip, 0, (uint64) gap, f->off, n1)) > 0)
+    if((r = writei(f->ip, 0, (uint64)gap, f->off, n1)) > 0)
       f->off += r;
     iunlock(f->ip);
     end_op();
@@ -213,7 +211,6 @@ fileexpand(struct file *f, int n)
       panic("short filewrite");
     i += r;
   }
-  kfree(gap);
   ret = (i == n ? n : -1);
 
   return ret;

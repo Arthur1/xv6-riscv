@@ -625,12 +625,18 @@ skipelem(char *path, char *name)
 // path element into name, which must have room for DIRSIZ bytes.
 // Must be called inside a transaction since it calls iput().
 static struct inode*
-namex(char *path, int nameiparent, char *name)
+namex(char *path, int nameiparent, char *name, int follow, struct inode *rootip, int depth)
 {
-  struct inode *ip, *next;
+  struct inode *ip, *next, *prev = 0;
+
+  // avoid infinite loop
+  if(depth > MAXSYMDEPTH)
+    return 0;
 
   if(*path == '/')
     ip = iget(ROOTDEV, ROOTINO);
+  else if(rootip != 0)
+    ip = idup(rootip);
   else
     ip = idup(myproc()->cwd);
 
@@ -639,6 +645,11 @@ namex(char *path, int nameiparent, char *name)
     if(ip->type != T_DIR){
       iunlockput(ip);
       return 0;
+    }
+    if(ip->type == T_SYMLINK){
+      char buf[114];
+      readi(ip, 0, (uint64)buf, 0, ip->size);
+      panic(buf);
     }
     if(nameiparent && *path == '\0'){
       // Stop one level early.
@@ -649,13 +660,36 @@ namex(char *path, int nameiparent, char *name)
       iunlockput(ip);
       return 0;
     }
-    iunlockput(ip);
+
+    if(prev)
+      iput(prev);
+    prev = ip;
+    iunlock(ip);
     ip = next;
   }
   if(nameiparent){
     iput(ip);
     return 0;
   }
+
+  if(!follow)
+    return ip;
+
+  // dereference symlink
+  ilock(ip);
+  if(ip->type != T_SYMLINK){
+    iunlock(ip);
+    return ip;
+  }
+  char target[MAXPATH], targetname[DIRSIZ];
+  if(readi(ip, 0, (uint64)target, 0, ip->size) < ip->size){
+    iunlockput(ip);
+    return 0;
+  }
+  target[ip->size] = '\0';
+  iunlockput(ip);
+  ip = namex(target, 0, targetname, 1, prev, depth + 1);
+
   return ip;
 }
 
@@ -663,11 +697,18 @@ struct inode*
 namei(char *path)
 {
   char name[DIRSIZ];
-  return namex(path, 0, name);
+  return namex(path, 0, name, 0, 0, 0);
+}
+
+struct inode*
+nameifollow(char *path)
+{
+  char name[DIRSIZ];
+  return namex(path, 0, name, 1, 0, 0);
 }
 
 struct inode*
 nameiparent(char *path, char *name)
 {
-  return namex(path, 1, name);
+  return namex(path, 1, name, 0, 0, 0);
 }
