@@ -313,7 +313,8 @@ sys_open(void)
       return -1;
     }
     ilock(ip);
-    if(ip->type == T_DIR && omode != O_RDONLY){
+    // ip->type == T_DIR && omode != O_RDONLY
+    if(ip->type == T_DIR && omode % 4 != 0){
       iunlockput(ip);
       end_op();
       return -1;
@@ -557,12 +558,27 @@ sys_symlink(void)
 uint64
 sys_readlink(void)
 {
-  char pathname[MAXPATH];
+  char path[MAXPATH];
   uint64 buf;
   int bufsiz;
 
-  if(argstr(0, pathname, MAXPATH) < 0 || argint(2, &bufsiz) < 0 || argaddr(1, &buf) < 0)
+  if(argstr(0, path, MAXPATH) < 0 || argint(2, &bufsiz) < 0 || argaddr(1, &buf) < 0)
     return -1;
-  // TODO
+
+  struct inode *ip = namei(path);
+  if(ip == 0){
+    end_op();
+    return -1;
+  }
+  ilock(ip);
+  if(ip->type != T_SYMLINK){
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+
+  readi(ip, 1, buf, 0, bufsiz);
+  iunlockput(ip);
+  end_op();
   return 0;
 }

@@ -67,6 +67,10 @@ int main(void)
   memset(buf, 0, 60);
   close(fd);
 
+  readlink("fsymlinktest1.txt", buf, 60);
+  strtest(buf, "fsymlinktest.txt");
+  memset(buf, 0, 60);
+
   printf("Success!\n");
   exit(0);
 }
