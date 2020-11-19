@@ -628,6 +628,7 @@ static struct inode*
 namex(char *path, int nameiparent, char *name, int follow, struct inode *rootip, int depth)
 {
   struct inode *ip, *next, *prev = 0;
+  char target[MAXPATH], targetname[DIRSIZ];
 
   // avoid infinite loop
   if(depth > MAXSYMDEPTH)
@@ -642,14 +643,21 @@ namex(char *path, int nameiparent, char *name, int follow, struct inode *rootip,
 
   while((path = skipelem(path, name)) != 0){
     ilock(ip);
+    if(ip->type == T_SYMLINK){
+      // dereference symlink
+      memset(target, 0, MAXPATH);
+      memset(targetname, 0, DIRSIZ);
+      if(readi(ip, 0, (uint64)target, 0, ip->size) < ip->size){
+        iunlockput(ip);
+        return 0;
+      }
+      iunlockput(ip);
+      ip = namex(target, nameiparent, targetname, follow, prev, depth + 1);
+      ilock(ip);
+    }
     if(ip->type != T_DIR){
       iunlockput(ip);
       return 0;
-    }
-    if(ip->type == T_SYMLINK){
-      char buf[114];
-      readi(ip, 0, (uint64)buf, 0, ip->size);
-      panic(buf);
     }
     if(nameiparent && *path == '\0'){
       // Stop one level early.
@@ -681,12 +689,12 @@ namex(char *path, int nameiparent, char *name, int follow, struct inode *rootip,
     iunlock(ip);
     return ip;
   }
-  char target[MAXPATH], targetname[DIRSIZ];
+  memset(target, 0, MAXPATH);
+  memset(targetname, 0, DIRSIZ);
   if(readi(ip, 0, (uint64)target, 0, ip->size) < ip->size){
     iunlockput(ip);
     return 0;
   }
-  target[ip->size] = '\0';
   iunlockput(ip);
   ip = namex(target, 0, targetname, 1, prev, depth + 1);
 
