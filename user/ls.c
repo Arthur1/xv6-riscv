@@ -2,6 +2,7 @@
 #include "kernel/stat.h"
 #include "user/user.h"
 #include "kernel/fs.h"
+#include "kernel/fcntl.h"
 
 char*
 fmtname(char *path)
@@ -43,6 +44,7 @@ ls(char *path)
 
   switch(st.type){
   case T_FILE:
+  case T_SYMLINK:
     printf("%s %d %d %l\n", fmtname(path), st.type, st.ino, st.size);
     break;
 
